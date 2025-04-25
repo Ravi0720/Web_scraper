@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crime Data Visualizer</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@17.0.2/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@17.0.2/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/babel-standalone@6.26.0/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white">
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const App = () => {
+            const [urls, setUrls] = useState('');
+            const [data, setData] = useState([]);
+            const [status, setStatus] = useState('');
+
+            // Fetch data from backend
+            const fetchData = async () => {
+                try {
+                    const response = await fetch('http://localhost:8000/data');
+                    const result = await response.json();
+                    setData(result);
+                } catch (error) {
+                    console.error('Error fetching data:', error);
+                }
+            };
+
+            // Handle scrape request
+            const handleScrape = async () => {
+                const urlList = urls.split(',').map(url => url.trim()).filter(url => url);
+                if (urlList.length === 0) {
+                    setStatus('Please enter at least one URL');
+                    return;
+                }
+                try {
+                    const response = await fetch('http://localhost:8000/scrape', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ urls: urlList, max_pages_per_site: 5 })
+                    });
+                    const result = await response.json();
+                    setStatus(result.status);
+                    fetchData(); // Refresh data after scraping
+                } catch (error) {
+                    setStatus('Error during scraping');
+                    console.error('Error:', error);
+                }
+            };
+
+            // 3D Visualization with Three.js
+            useEffect(() => {
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                const renderer = new THREE.WebGLRenderer();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                document.getElementById('three-canvas').appendChild(renderer.domElement);
+
+                // Add OrbitControls
+                const controls = new THREE.OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.25;
+                controls.screenSpacePanning = false;
+
+                // Lighting
+                const ambientLight = new THREE.AmbientLight(0x404040);
+                scene.add(ambientLight);
+                const pointLight = new THREE.PointLight(0xffffff, 1, 100);
+                pointLight.position.set(10, 10, 10);
+                scene.add(pointLight);
+
+                // Create 3D bars for crime data (mock data or real)
+                const crimeTypes = data.length > 0 ? [...new Set(data.flatMap(d => d.incidents))].slice(0, 5) : ['Robbery', 'Assault', 'Burglary', 'Theft', 'Vandalism'];
+                const counts = crimeTypes.map(type => data.filter(d => d.incidents.includes(type)).length || Math.random() * 10);
+
+                const bars = [];
+                crimeTypes.forEach((type, i) => {
+                    const geometry = new THREE.BoxGeometry(0.8, counts[i], 0.8);
+                    const material = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+                    const bar = new THREE.Mesh(geometry, material);
+                    bar.position.set(i * 1.5 - crimeTypes.length * 0.75, counts[i] / 2, 0);
+                    scene.add(bar);
+                    bars.push(bar);
+                });
+
+                camera.position.z = 15;
+
+                // Animation loop
+                const animate = () => {
+                    requestAnimationFrame(animate);
+                    bars.forEach(bar => {
+                        bar.rotation.y += 0.01; // Rotate bars for effect
+                    });
+                    controls.update();
+                    renderer.render(scene, camera);
+                };
+                animate();
+
+                // Handle resize
+                window.addEventListener('resize', () => {
+                    camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+
+                return () => {
+                    document.getElementById('three-canvas').innerHTML = '';
+                };
+            }, [data]);
+
+            return (
+                <div className="container mx-auto p-4">
+                    <h1 className="text-4xl font-bold text-center mb-4">Crime Data Visualizer</h1>
+                    <div className="mb-4">
+                        <label className="block text-lg mb-2">Enter Website URLs (comma-separated):</label>
+                        <input
+                            type="text"
+                            value={urls}
+                            onChange={(e) => setUrls(e.target.value)}
+                            className="w-full p-2 bg-gray-800 text-white rounded"
+                            placeholder="e.g., https://cde.ucr.cjis.gov,https://www.crimemapping.com"
+                        />
+                    </div>
+                    <button
+                        onClick={handleScrape}
+                        className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+                    >
+                        Start Scraping
+                    </button>
+                    <p className="mt-2">{status}</p>
+                    <div id="three-canvas" className="mt-4"></div>
+                    <div className="mt-4">
+                        <h2 className="text-2xl font-bold">Scraped Data</h2>
+                        {data.map((item, index) => (
+                            <div key={index} className="bg-gray-800 p-4 rounded mt-2">
+                                <p><strong>Website:</strong> {item.website}</p>
+                                <p><strong>URL:</strong> {item.url}</p>
+                                <p><strong>Headings:</strong> {item.headings.join(', ')}</p>
+                                <p><strong>Incidents:</strong> {item.incidents.join(', ')}</p>
+                                <p><strong>Dataset Links:</strong> {item.dataset_links.join(', ')}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
