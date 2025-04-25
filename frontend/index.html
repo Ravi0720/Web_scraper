@@ -75,7 +75,7 @@
                 pointLight.position.set(10, 10, 10);
                 scene.add(pointLight);
 
-                // Create 3D bars for crime data (mock data or real)
+                // Create 3D bars for crime data
                 const crimeTypes = data.length > 0 ? [...new Set(data.flatMap(d => d.incidents))].slice(0, 5) : ['Robbery', 'Assault', 'Burglary', 'Theft', 'Vandalism'];
                 const counts = crimeTypes.map(type => data.filter(d => d.incidents.includes(type)).length || Math.random() * 10);
 

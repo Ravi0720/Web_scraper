@@ -53,6 +53,7 @@ class WebScraper:
     def __init__(self, delay=2):
         self.delay = delay
         self.visited_urls = set()
+        self.data = []
 
     def get_headers(self):
         return {
@@ -135,6 +136,7 @@ class WebScraper:
                     page_data = self.parse_page(html, url)
                     page_data['url'] = url
                     page_data['website'] = base_url
+                    self.data.append(page_data)
 
                     # Save to database
                     db_entry = CrimeData(
@@ -156,7 +158,28 @@ class WebScraper:
                     pages_scraped += 1
                     time.sleep(self.delay)
 
+        # Save to scraped_data.txt
+        self.save_to_file()
         session.close()
+
+    def save_to_file(self, filename='scraped_data.txt'):
+        with open(filename, 'w', encoding='utf-8') as f:
+            for page_data in self.data:
+                f.write(f"Website: {page_data['website']}\n")
+                f.write(f"URL: {page_data['url']}\n")
+                f.write("Headings:\n")
+                for heading in page_data.get('headings', []):
+                    f.write(f"  {heading}\n")
+                f.write("Tables:\n")
+                for table in page_data.get('tables', []):
+                    f.write(f"  {table}\n")
+                f.write("Incidents:\n")
+                for incident in page_data.get('incidents', []):
+                    f.write(f"  {incident}\n")
+                f.write("Dataset Links:\n")
+                for link in page_data.get('dataset_links', []):
+                    f.write(f"  {link}\n")
+                f.write("\n" + "="*50 + "\n")
 
 # API endpoints
 @app.post("/scrape")
