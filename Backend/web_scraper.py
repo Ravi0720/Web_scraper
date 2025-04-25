@@ -3,16 +3,17 @@ from bs4 import BeautifulSoup
 import time
 import random
 import re
-from urllib.parse import urljoin
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 import logging
+import cv2
+import numpy as np
 from sqlalchemy import create_engine, Column, Integer, String, Text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+from sqlalchemy.orm import sessionmaker, declarative_base
+import os
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -25,14 +26,21 @@ Session = sessionmaker(bind=engine)
 class CrimeData(Base):
     __tablename__ = 'crime_data'
     id = Column(Integer, primary_key=True)
-    website = Column(String)
+    source = Column(String)
     url = Column(String)
-    headings = Column(Text)
-    tables = Column(Text)
-    incidents = Column(Text)
-    dataset_links = Column(Text)
+    criminal_name = Column(String)
+    crime_date = Column(String)
+    crime_story = Column(Text)
+    fetch_date = Column(String)  # To track when the data was fetched
 
 Base.metadata.create_all(engine)
+
+# Mock criminal database (for identification)
+MOCK_CRIMINAL_DB = {
+    "John Doe": {"aliases": ["Johnny D", "J. Doe"], "history": "Robbery, 2019", "image_hash": "mock_hash_123"},
+    "Jane Smith": {"aliases": ["J. Smith"], "history": "Assault, 2020", "image_hash": "mock_hash_456"},
+    "Alice Brown": {"aliases": ["A. Brown"], "history": "Theft, 2021", "image_hash": "mock_hash_789"},
+}
 
 # User agents for rotation
 USER_AGENTS = [
@@ -44,15 +52,30 @@ USER_AGENTS = [
 # FastAPI app
 app = FastAPI()
 
-# Pydantic model for request
-class ScrapeRequest(BaseModel):
-    urls: List[str]
-    max_pages_per_site: int = 5
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
+# Pydantic models
+class IdentifyRequest(BaseModel):
+    name: str = None
+
+class CrimeoMeterRequest(BaseModel):
+    lat: float
+    lon: float
+    start_date: str
+    end_date: str
+    distance: str = "1mi"
+
+# WebScraper class
 class WebScraper:
     def __init__(self, delay=2):
         self.delay = delay
-        self.visited_urls = set()
         self.data = []
 
     def get_headers(self):
@@ -63,150 +86,239 @@ class WebScraper:
             'Connection': 'keep-alive'
         }
 
-    def fetch_page(self, url, use_selenium=False):
-        if use_selenium:
-            try:
-                options = Options()
-                options.add_argument('--headless')
-                driver = webdriver.Chrome(options=options)
-                driver.get(url)
-                time.sleep(3)
-                html = driver.page_source
-                logging.info(f"Successfully fetched with Selenium: {url}")
-                return html
-            except Exception as e:
-                logging.error(f"Failed to fetch {url} with Selenium: {e}")
-                return None
-            finally:
-                driver.quit()
-        else:
-            try:
-                response = requests.get(url, headers=self.get_headers(), timeout=10)
-                response.raise_for_status()
-                logging.info(f"Successfully fetched: {url}")
-                return response.text
-            except requests.RequestException as e:
-                logging.error(f"Failed to fetch {url}: {e}")
-                return None
+    def fetch_page(self, url):
+        try:
+            response = requests.get(url, headers=self.get_headers(), timeout=10)
+            response.raise_for_status()
+            logging.info(f"Successfully fetched: {url}")
+            return response.text
+        except requests.RequestException as e:
+            logging.error(f"Failed to fetch {url}: {e}")
+            return None
 
-    def parse_page(self, html, url):
+    def extract_criminal_info(self, text):
+        # Extract names (simple heuristic: look for capitalized words that might be names)
+        name_pattern = r'\b[A-Z][a-z]+ [A-Z][a-z]+\b'
+        names = re.findall(name_pattern, text)
+        # Filter out common false positives or irrelevant names
+        exclude_names = {'United States', 'New York', 'Los Angeles', 'Police Department'}
+        names = [name for name in names if name not in exclude_names and len(name.split()) == 2]
+
+        # Extract dates (e.g., "April 23, 2025" or "2025-04-23")
+        date_pattern = r'(?:\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b|\b\d{4}-\d{2}-\d{2}\b)'
+        dates = re.findall(date_pattern, text)
+
+        # Extract story (crime-related sentences)
+        crime_keywords = r'crime|murder|theft|assault|robbery|arrest|convict|kill|attack'
+        sentences = re.split(r'[.!?]\s+', text)
+        crime_sentences = [s for s in sentences if re.search(crime_keywords, s, re.I)]
+
+        return names, dates, crime_sentences
+
+    def parse_news_page(self, html, url, source):
         if not html:
-            return {}
+            return None
 
         soup = BeautifulSoup(html, 'html.parser')
-        page_data = {}
+        text = soup.get_text(separator=' ', strip=True)
 
-        # Extract tables
-        tables = soup.find_all('table')
-        page_data['tables'] = [str(table) for table in tables if table.get_text().strip()]
+        names, dates, crime_sentences = self.extract_criminal_info(text)
+        if not names or not dates or not crime_sentences:
+            return None  # Skip if we can't extract the required info
 
-        # Extract incidents
-        incidents = soup.find_all('div', class_=re.compile('crime|incident'))
-        page_data['incidents'] = [inc.get_text().strip() for inc in incidents if inc.get_text().strip()]
+        # Assume the first name and date are related to the main crime story
+        criminal_name = names[0] if names else "Unknown"
+        crime_date = dates[0] if dates else "Unknown"
+        crime_story = " ".join(crime_sentences[:2]) if crime_sentences else "No story available"
 
-        # Extract headings
-        headings = soup.find_all(['h1', 'h2', 'h3'])
-        page_data['headings'] = [h.get_text().strip() for h in headings if h.get_text().strip()]
+        return {
+            "source": source,
+            "url": url,
+            "criminal_name": criminal_name,
+            "crime_date": crime_date,
+            "crime_story": crime_story,
+            "fetch_date": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
 
-        # Extract dataset links
-        links = soup.find_all('a', href=re.compile(r'\.(csv|json|pdf)'))
-        page_data['dataset_links'] = [urljoin(url, link['href']) for link in links]
+    def fetch_crimeometer_data(self, lat, lon, start_date, end_date, distance="1mi"):
+        api_key = "YOUR_CRIMEOMETER_API_KEY"
+        url = f"https://api.crimeometer.com/v2/crime-incidents?lat={lat}&lon={lon}&datetime_ini={start_date}&datetime_end={end_date}&distance={distance}"
+        headers = {"x-api-key": api_key}
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            logging.info(f"Successfully fetched CrimeoMeter data for lat={lat}, lon={lon}")
+            return data
+        except requests.RequestException as e:
+            logging.error(f"Failed to fetch CrimeoMeter data: {e}")
+            return None
 
-        return page_data
-
-    def scrape(self, urls, max_pages_per_site=5):
+    def fetch_reliable_data(self):
         session = Session()
-        for base_url in urls:
-            logging.info(f"Starting scrape for: {base_url}")
-            urls_to_visit = [base_url]
-            pages_scraped = 0
+        self.data = []
 
-            while urls_to_visit and pages_scraped < max_pages_per_site:
-                url = urls_to_visit.pop(0)
-                if url in self.visited_urls:
-                    continue
+        # Predefined news sources for crime data
+        news_sources = [
+            {"name": "CNN", "url": "https://www.cnn.com/us/crime"},
+            {"name": "BBC", "url": "https://www.bbc.com/news/topics/c77jz3mdmx9t/crime"},
+            {"name": "The Guardian", "url": "https://www.theguardian.com/uk/crime"}
+        ]
 
-                self.visited_urls.add(url)
-                logging.info(f"Scraping: {url}")
-
-                # Use selenium for specific sites
-                use_selenium = any(site in url for site in ['crimemapping.com', 'spotcrime.com'])
-                html = self.fetch_page(url, use_selenium=use_selenium)
-                if html:
-                    page_data = self.parse_page(html, url)
-                    page_data['url'] = url
-                    page_data['website'] = base_url
+        # Scrape news websites
+        for source in news_sources:
+            logging.info(f"Fetching data from: {source['name']} ({source['url']})")
+            html = self.fetch_page(source['url'])
+            if html:
+                page_data = self.parse_news_page(html, source['url'], source['name'])
+                if page_data:
                     self.data.append(page_data)
 
-                    # Save to database
                     db_entry = CrimeData(
-                        website=base_url,
-                        url=url,
-                        headings='; '.join(page_data.get('headings', [])),
-                        tables='; '.join(page_data.get('tables', [])),
-                        incidents='; '.join(page_data.get('incidents', [])),
-                        dataset_links='; '.join(page_data.get('dataset_links', []))
+                        source=page_data['source'],
+                        url=page_data['url'],
+                        criminal_name=page_data['criminal_name'],
+                        crime_date=page_data['crime_date'],
+                        crime_story=page_data['crime_story'],
+                        fetch_date=page_data['fetch_date']
                     )
                     session.add(db_entry)
                     session.commit()
+            time.sleep(self.delay)
 
-                    # Find new URLs to visit
-                    for link in page_data.get('dataset_links', []):
-                        if link.startswith(base_url) and link not in self.visited_urls:
-                            urls_to_visit.append(link)
-
-                    pages_scraped += 1
-                    time.sleep(self.delay)
-
-        # Save to scraped_data.txt
         self.save_to_file()
         session.close()
+
+    def identify_criminal_by_image(self, image_file):
+        try:
+            image_path = "temp_image.jpg"
+            with open(image_path, 'wb') as f:
+                f.write(image_file.file.read())
+            
+            img = cv2.imread(image_path)
+            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+
+            results = []
+            for i, (x, y, w, h) in enumerate(faces):
+                image_hash = f"mock_hash_{(i % 3) + 1}"
+                match_found = False
+                for name, info in MOCK_CRIMINAL_DB.items():
+                    if info.get("image_hash") == image_hash:
+                        results.append({"name": name, "details": info})
+                        match_found = True
+                        break
+                if not match_found:
+                    results.append({"name": "Unknown", "details": f"No match found for face {i+1}"})
+            if not results:
+                results.append({"name": "No Faces", "details": "No faces detected in the image"})
+            return results
+        except Exception as e:
+            logging.error(f"Error in image identification: {e}")
+            return [{"name": "Error", "details": str(e)}]
+        finally:
+            if os.path.exists(image_path):
+                os.remove(image_path)
+
+    def identify_criminal_by_name(self, name):
+        name = name.strip().lower()
+        for known_name, info in MOCK_CRIMINAL_DB.items():
+            if name == known_name.lower() or any(alias.lower() == name for alias in info.get("aliases", [])):
+                return {"name": known_name, "details": info}
+        return {"name": "Unknown", "details": "No match found"}
 
     def save_to_file(self, filename='scraped_data.txt'):
         with open(filename, 'w', encoding='utf-8') as f:
             for page_data in self.data:
-                f.write(f"Website: {page_data['website']}\n")
+                f.write(f"Source: {page_data['source']}\n")
                 f.write(f"URL: {page_data['url']}\n")
-                f.write("Headings:\n")
-                for heading in page_data.get('headings', []):
-                    f.write(f"  {heading}\n")
-                f.write("Tables:\n")
-                for table in page_data.get('tables', []):
-                    f.write(f"  {table}\n")
-                f.write("Incidents:\n")
-                for incident in page_data.get('incidents', []):
-                    f.write(f"  {incident}\n")
-                f.write("Dataset Links:\n")
-                for link in page_data.get('dataset_links', []):
-                    f.write(f"  {link}\n")
+                f.write(f"Criminal Name: {page_data['criminal_name']}\n")
+                f.write(f"Crime Date: {page_data['crime_date']}\n")
+                f.write(f"Crime Story: {page_data['crime_story']}\n")
+                f.write(f"Fetched On: {page_data['fetch_date']}\n")
                 f.write("\n" + "="*50 + "\n")
 
 # API endpoints
-@app.post("/scrape")
-async def scrape_websites(request: ScrapeRequest):
+@app.get("/")
+async def root():
+    return {"message": "Welcome to the Crime Data Scraper API. Use POST /fetch-data to retrieve data or POST /identify/image to identify criminals."}
+
+@app.get("/favicon.ico")
+async def favicon():
+    return {"message": "No favicon available"}
+
+@app.post("/fetch-data")
+async def fetch_data():
+    logging.info("Received request to fetch reliable data")
     scraper = WebScraper()
     try:
-        scraper.scrape(request.urls, request.max_pages_per_site)
-        return {"status": "Scraping completed"}
+        scraper.fetch_reliable_data()
+        return {"status": "Data fetch completed"}
     except Exception as e:
+        logging.error("Data fetch error: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/data")
 async def get_data():
+    logging.info("Received request for /data endpoint")
     session = Session()
     try:
         data = session.query(CrimeData).all()
         return [{
-            "website": d.website,
+            "source": d.source,
             "url": d.url,
-            "headings": d.headings.split('; ') if d.headings else [],
-            "tables": d.tables.split('; ') if d.tables else [],
-            "incidents": d.incidents.split('; ') if d.incidents else [],
-            "dataset_links": d.dataset_links.split('; ') if d.dataset_links else []
+            "criminal_name": d.criminal_name,
+            "crime_date": d.crime_date,
+            "crime_story": d.crime_story,
+            "fetch_date": d.fetch_date
         } for d in data]
     finally:
         session.close()
 
+@app.post("/fetch-crimeometer")
+async def fetch_crimeometer(request: CrimeoMeterRequest):
+    logging.info("Received CrimeoMeter request for lat=%s, lon=%s", request.lat, request.lon)
+    scraper = WebScraper()
+    try:
+        data = scraper.fetch_crimeometer_data(
+            request.lat, request.lon, request.start_date, request.end_date, request.distance
+        )
+        if not data:
+            raise HTTPException(status_code=500, detail="Failed to fetch CrimeoMeter data")
+        session = Session()
+        for incident in data.get("incidents", []):
+            db_entry = CrimeData(
+                source="crimeometer.com",
+                url=f"lat={request.lat},lon={request.lon}",
+                criminal_name="Unknown",  # CrimeoMeter doesn't provide names
+                crime_date=incident.get("datetime", "Unknown"),
+                crime_story=f"{incident.get('incident_type', 'Crime')} reported at {incident.get('location', 'unknown location')}",
+                fetch_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            )
+            session.add(db_entry)
+        session.commit()
+        session.close()
+        return {"status": "CrimeoMeter data fetched", "data": data}
+    except Exception as e:
+        logging.error("CrimeoMeter fetch error: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/identify/image")
+async def identify_by_image(image: UploadFile = File(...)):
+    logging.info("Received image for identification")
+    scraper = WebScraper()
+    results = scraper.identify_criminal_by_image(image)
+    return {"identifications": results}
+
+@app.post("/identify/name")
+async def identify_by_name(request: IdentifyRequest):
+    logging.info("Received name for identification: %s", request.name)
+    scraper = WebScraper()
+    result = scraper.identify_criminal_by_name(request.name)
+    return {"identification": result}
+
 if __name__ == "__main__":
+    logging.info("Starting FastAPI server on port 8000")
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
