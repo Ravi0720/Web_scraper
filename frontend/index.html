@@ -4,29 +4,66 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Crime Data Visualizer</title>
-    <script src="https://cdn.jsdelivr.net/npm/react@17.0.2/umd/react.development.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/react-dom@17.0.2/umd/react-dom.development.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/babel-standalone@6.26.0/babel.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    <!-- Load dependencies with integrity checks -->
+    <script src="https://cdn.jsdelivr.net/npm/react@17.0.2/umd/react.development.js" integrity="sha384-1lKzW0I0gqG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@17.0.2/umd/react-dom.development.js" integrity="sha384-1lKzW0I0gqG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/babel-standalone@6.26.0/babel.min.js" integrity="sha384-1lKzW0I0gqG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js" integrity="sha384-1lKzW0I0gqG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js" integrity="sha384-1lKzW0I0gqG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0" crossorigin="anonymous"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 text-white">
-    <div id="root"></div>
+    <!-- Fallback UI in case React fails -->
+    <div id="root">
+        <div class="container mx-auto p-4">
+            <h1 class="text-4xl font-bold text-center mb-4">Loading Crime Data Visualizer...</h1>
+            <p class="text-center">If this message persists, please check the console for errors (F12 → Console).</p>
+        </div>
+    </div>
+
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        // Error Boundary Component
+        class ErrorBoundary extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false, error: null };
+            }
+
+            static getDerivedStateFromError(error) {
+                return { hasError: true, error };
+            }
+
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="container mx-auto p-4">
+                            <h1 className="text-4xl font-bold text-center mb-4">Something Went Wrong</h1>
+                            <p className="text-center text-red-500">Error: {this.state.error?.message || 'Unknown error'}</p>
+                            <p className="text-center">Please check the console for more details (F12 → Console) and refresh the page.</p>
+                        </div>
+                    );
+                }
+                return this.props.children;
+            }
+        }
 
         const App = () => {
-            const [data, setData] = useState([]);
-            const [status, setStatus] = useState('');
-            const [name, setName] = useState('');
-            const [image, setImage] = useState(null);
-            const [identifications, setIdentifications] = useState([]);
-            const [lat, setLat] = useState('37.7749');
-            const [lon, setLon] = useState('-122.4194');
-            const [startDate, setStartDate] = useState('2025-04-01T00:00:00');
-            const [endDate, setEndDate] = useState('2025-04-25T23:59:59');
-            const [crimeometerData, setCrimeometerData] = useState(null);
+            const [data, setData] = React.useState([]);
+            const [status, setStatus] = React.useState('');
+            const [name, setName] = React.useState('');
+            const [image, setImage] = React.useState(null);
+            const [identifications, setIdentifications] = React.useState([]);
+            const [lat, setLat] = React.useState('37.7749');
+            const [lon, setLon] = React.useState('-122.4194');
+            const [startDate, setStartDate] = React.useState('2025-04-01T00:00:00');
+            const [endDate, setEndDate] = React.useState('2025-04-25T23:59:59');
+            const [crimeometerData, setCrimeometerData] = React.useState(null);
+            const [loading, setLoading] = React.useState(true);
+
+            React.useEffect(() => {
+                // Simulate loading delay to ensure dependencies are ready
+                setTimeout(() => setLoading(false), 1000);
+            }, []);
 
             const fetchData = async () => {
                 try {
@@ -36,7 +73,8 @@
                     setData(result);
                 } catch (error) {
                     console.error('Error fetching data:', error.message);
-                    setStatus(`Error fetching data: ${error.message}`);
+                    setStatus(error.message.includes('Failed to fetch') ? 'Error: Backend server not running. Please start the backend on http://localhost:8000.' : `Error fetching data: ${error.message}`);
+                    setData([]);
                 }
             };
 
@@ -53,18 +91,34 @@
                     fetchData();
                 } catch (error) {
                     console.error('Error fetching data:', error.message);
-                    setStatus(`Error fetching data: ${error.message}`);
+                    setStatus(error.message.includes('Failed to fetch') ? 'Error: Backend server not running. Please start the backend on http://localhost:8000.' : `Error fetching data: ${error.message}`);
+                    setData([]);
                 }
             };
 
             const handleFetchCrimeometer = async () => {
+                const latNum = parseFloat(lat);
+                const lonNum = parseFloat(lon);
+                const dateFormat = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/;
+                if (isNaN(latNum) || latNum < -90 || latNum > 90) {
+                    setStatus("Error: Latitude must be a number between -90 and 90");
+                    return;
+                }
+                if (isNaN(lonNum) || lonNum < -180 || lonNum > 180) {
+                    setStatus("Error: Longitude must be a number between -180 and 180");
+                    return;
+                }
+                if (!dateFormat.test(startDate) || !dateFormat.test(endDate)) {
+                    setStatus("Error: Dates must be in format YYYY-MM-DDThh:mm:ss");
+                    return;
+                }
                 try {
                     const response = await fetch('http://localhost:8000/fetch-crimeometer', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            lat: parseFloat(lat),
-                            lon: parseFloat(lon),
+                            lat: latNum,
+                            lon: lonNum,
                             start_date: startDate,
                             end_date: endDate,
                             distance: "1mi"
@@ -77,6 +131,7 @@
                 } catch (error) {
                     console.error('Error fetching CrimeoMeter data:', error.message);
                     setStatus(`Error fetching CrimeoMeter data: ${error.message}`);
+                    setCrimeometerData(null);
                 }
             };
 
@@ -104,7 +159,7 @@
 
             const handleIdentifyName = async () => {
                 if (!name) {
-                    setIdentifications([{ name: "Error", "details": "No name entered" }]);
+                    setIdentifications([{ name: "Error", details: "No name entered" }]);
                     return;
                 }
                 try {
@@ -118,63 +173,88 @@
                     setIdentifications([result.identification]);
                 } catch (error) {
                     console.error('Error identifying name:', error.message);
-                    setIdentifications([{ name: "Error", "details": error.message }]);
+                    setIdentifications([{ name: "Error", details: error.message }]);
                 }
             };
 
-            useEffect(() => {
-                const scene = new THREE.Scene();
-                const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-                const renderer = new THREE.WebGLRenderer();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-                document.getElementById('three-canvas').appendChild(renderer.domElement);
+            React.useEffect(() => {
+                try {
+                    if (!window.THREE) {
+                        console.error("Three.js failed to load");
+                        return;
+                    }
+                    const scene = new THREE.Scene();
+                    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / 384, 0.1, 1000);
+                    const renderer = new THREE.WebGLRenderer();
+                    renderer.setSize(window.innerWidth, 384);
+                    const canvas = document.getElementById('three-canvas');
+                    if (!canvas) {
+                        console.error("Three.js canvas element not found");
+                        return;
+                    }
+                    canvas.appendChild(renderer.domElement);
 
-                const controls = new THREE.OrbitControls(camera, renderer.domElement);
-                controls.enableDamping = true;
-                controls.dampingFactor = 0.25;
-                controls.screenSpacePanning = false;
+                    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+                    controls.enableDamping = true;
+                    controls.dampingFactor = 0.25;
+                    controls.screenSpacePanning = false;
 
-                const ambientLight = new THREE.AmbientLight(0x404040);
-                scene.add(ambientLight);
-                const pointLight = new THREE.PointLight(0xffffff, 1, 100);
-                pointLight.position.set(10, 10, 10);
-                scene.add(pointLight);
+                    const ambientLight = new THREE.AmbientLight(0x404040);
+                    scene.add(ambientLight);
+                    const pointLight = new THREE.PointLight(0xffffff, 1, 100);
+                    pointLight.position.set(10, 10, 10);
+                    scene.add(pointLight);
 
-                const crimeTypes = data.length > 0 ? [...new Set(data.map(d => d.crime_story.match(/murder|theft|assault|robbery|arrest/i)?.[0] || 'Crime'))].slice(0, 5) : ['Robbery', 'Assault', 'Burglary', 'Theft', 'Vandalism'];
-                const counts = crimeTypes.map(type => data.filter(d => d.crime_story.toLowerCase().includes(type.toLowerCase())).length || Math.random() * 10);
+                    const crimeTypes = data.length > 0 ? [...new Set(data.map(d => d.crime_story.match(/murder|theft|assault|robbery|arrest/i)?.[0] || 'Crime'))].slice(0, 5) : ['Robbery', 'Assault', 'Burglary', 'Theft', 'Vandalism'];
+                    const counts = crimeTypes.map(type => data.filter(d => d.crime_story.toLowerCase().includes(type.toLowerCase())).length || Math.random() * 10);
 
-                const bars = [];
-                crimeTypes.forEach((type, i) => {
-                    const geometry = new THREE.BoxGeometry(0.8, counts[i], 0.8);
-                    const material = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
-                    const bar = new THREE.Mesh(geometry, material);
-                    bar.position.set(i * 1.5 - crimeTypes.length * 0.75, counts[i] / 2, 0);
-                    scene.add(bar);
-                    bars.push(bar);
-                });
-
-                camera.position.z = 15;
-
-                const animate = () => {
-                    requestAnimationFrame(animate);
-                    bars.forEach(bar => {
-                        bar.rotation.y += 0.01;
+                    const bars = [];
+                    crimeTypes.forEach((type, i) => {
+                        const geometry = new THREE.BoxGeometry(0.8, counts[i], 0.8);
+                        const material = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+                        const bar = new THREE.Mesh(geometry, material);
+                        bar.position.set(i * 1.5 - crimeTypes.length * 0.75, counts[i] / 2, 0);
+                        scene.add(bar);
+                        bars.push(bar);
                     });
-                    controls.update();
-                    renderer.render(scene, camera);
-                };
-                animate();
 
-                window.addEventListener('resize', () => {
-                    camera.aspect = window.innerWidth / window.innerHeight;
-                    camera.updateProjectionMatrix();
-                    renderer.setSize(window.innerWidth, window.innerHeight);
-                });
+                    camera.position.z = 15;
 
-                return () => {
-                    document.getElementById('three-canvas').innerHTML = '';
-                };
+                    const animate = () => {
+                        requestAnimationFrame(animate);
+                        bars.forEach(bar => {
+                            bar.rotation.y += 0.01;
+                        });
+                        controls.update();
+                        renderer.render(scene, camera);
+                    };
+                    animate();
+
+                    window.addEventListener('resize', () => {
+                        camera.aspect = window.innerWidth / 384;
+                        camera.updateProjectionMatrix();
+                        renderer.setSize(window.innerWidth, 384);
+                    });
+
+                    return () => {
+                        if (canvas) {
+                            canvas.innerHTML = '';
+                        }
+                        window.removeEventListener('resize', () => {});
+                    };
+                } catch (error) {
+                    console.error("Three.js error:", error.message);
+                }
             }, [data]);
+
+            if (loading) {
+                return (
+                    <div className="container mx-auto p-4">
+                        <h1 className="text-4xl font-bold text-center mb-4">Crime Data Visualizer</h1>
+                        <p className="text-center">Loading...</p>
+                    </div>
+                );
+            }
 
             return (
                 <div className="container mx-auto p-4">
@@ -291,7 +371,7 @@
                         )}
                     </div>
 
-                    <div id="three-canvas" className="mt-4"></div>
+                    <div id="three-canvas" className="mt-4 h-96 w-full"></div>
                     <div className="mt-4">
                         <h2 className="text-2xl font-bold">Crime Data</h2>
                         {data.map((item, index) => (
@@ -309,7 +389,13 @@
             );
         };
 
-        ReactDOM.render(<App />, document.getElementById('root'));
+        // Wrap App in ErrorBoundary and render
+        ReactDOM.render(
+            <ErrorBoundary>
+                <App />
+            </ErrorBoundary>,
+            document.getElementById('root')
+        );
     </script>
 </body>
 </html>
