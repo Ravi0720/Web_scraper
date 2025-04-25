@@ -31,7 +31,7 @@ class CrimeData(Base):
     criminal_name = Column(String)
     crime_date = Column(String)
     crime_story = Column(Text)
-    fetch_date = Column(String)  # To track when the data was fetched
+    fetch_date = Column(String)
 
 Base.metadata.create_all(engine)
 
@@ -97,18 +97,14 @@ class WebScraper:
             return None
 
     def extract_criminal_info(self, text):
-        # Extract names (simple heuristic: look for capitalized words that might be names)
         name_pattern = r'\b[A-Z][a-z]+ [A-Z][a-z]+\b'
         names = re.findall(name_pattern, text)
-        # Filter out common false positives or irrelevant names
         exclude_names = {'United States', 'New York', 'Los Angeles', 'Police Department'}
         names = [name for name in names if name not in exclude_names and len(name.split()) == 2]
 
-        # Extract dates (e.g., "April 23, 2025" or "2025-04-23")
         date_pattern = r'(?:\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b|\b\d{4}-\d{2}-\d{2}\b)'
         dates = re.findall(date_pattern, text)
 
-        # Extract story (crime-related sentences)
         crime_keywords = r'crime|murder|theft|assault|robbery|arrest|convict|kill|attack'
         sentences = re.split(r'[.!?]\s+', text)
         crime_sentences = [s for s in sentences if re.search(crime_keywords, s, re.I)]
@@ -124,9 +120,8 @@ class WebScraper:
 
         names, dates, crime_sentences = self.extract_criminal_info(text)
         if not names or not dates or not crime_sentences:
-            return None  # Skip if we can't extract the required info
+            return None
 
-        # Assume the first name and date are related to the main crime story
         criminal_name = names[0] if names else "Unknown"
         crime_date = dates[0] if dates else "Unknown"
         crime_story = " ".join(crime_sentences[:2]) if crime_sentences else "No story available"
@@ -158,14 +153,12 @@ class WebScraper:
         session = Session()
         self.data = []
 
-        # Predefined news sources for crime data
         news_sources = [
             {"name": "CNN", "url": "https://www.cnn.com/us/crime"},
             {"name": "BBC", "url": "https://www.bbc.com/news/topics/c77jz3mdmx9t/crime"},
             {"name": "The Guardian", "url": "https://www.theguardian.com/uk/crime"}
         ]
 
-        # Scrape news websites
         for source in news_sources:
             logging.info(f"Fetching data from: {source['name']} ({source['url']})")
             html = self.fetch_page(source['url'])
@@ -291,7 +284,7 @@ async def fetch_crimeometer(request: CrimeoMeterRequest):
             db_entry = CrimeData(
                 source="crimeometer.com",
                 url=f"lat={request.lat},lon={request.lon}",
-                criminal_name="Unknown",  # CrimeoMeter doesn't provide names
+                criminal_name="Unknown",
                 crime_date=incident.get("datetime", "Unknown"),
                 crime_story=f"{incident.get('incident_type', 'Crime')} reported at {incident.get('location', 'unknown location')}",
                 fetch_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
