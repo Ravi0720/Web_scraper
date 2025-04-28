@@ -4,25 +4,130 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Crime Data Visualizer</title>
-    <!-- Load dependencies with integrity checks -->
-    <script src="https://cdn.jsdelivr.net/npm/react@17.0.2/umd/react.development.js" integrity="sha384-1lKzW0I0gqG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/react-dom@17.0.2/umd/react-dom.development.js" integrity="sha384-1lKzW0I0gqG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/babel-standalone@6.26.0/babel.min.js" integrity="sha384-1lKzW0I0gqG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js" integrity="sha384-1lKzW0I0gqG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js" integrity="sha384-1lKzW0I0gqG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0qG8qG8q0" crossorigin="anonymous"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react@17.0.2/umd/react.development.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@17.0.2/umd/react-dom.development.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/babel-standalone@6.26.0/babel.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js" crossorigin="anonymous"></script>
+    <style>
+        body {
+            background-color: #1a202c;
+            color: #fff;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            margin-left: auto;
+            margin-right: auto;
+            padding: 1rem;
+        }
+        h1 {
+            font-size: 2.25rem;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        h2 {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-top: 1rem;
+        }
+        .text-center {
+            text-align: center;
+        }
+        .mb-4 {
+            margin-bottom: 1rem;
+        }
+        .mt-2 {
+            margin-top: 0.5rem;
+        }
+        .mt-4 {
+            margin-top: 1rem;
+        }
+        .w-full {
+            width: 100%;
+        }
+        .p-2 {
+            padding: 0.5rem;
+        }
+        .p-4 {
+            padding: 1rem;
+        }
+        .bg-gray-800 {
+            background-color: #2d3748;
+        }
+        .rounded {
+            border-radius: 0.25rem;
+        }
+        .text-red-500 {
+            color: #f56565;
+        }
+        input {
+            background-color: #2d3748;
+            color: #fff;
+            border: 1px solid #4a5568;
+            border-radius: 0.25rem;
+            padding: 0.5rem;
+            width: 100%;
+        }
+        input:focus {
+            outline: none;
+            border-color: #a0aec0;
+        }
+        button {
+            background-color: #48bb78;
+            color: #fff;
+            font-weight: bold;
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #38a169;
+        }
+        .bg-purple-500 {
+            background-color: #9f7aea;
+        }
+        .bg-purple-500:hover {
+            background-color: #805ad5;
+        }
+        .bg-blue-500 {
+            background-color: #63b3ed;
+        }
+        .bg-blue-500:hover {
+            background-color: #4299e1;
+        }
+        .mr-2 {
+            margin-right: 0.5rem;
+        }
+        .h-96 {
+            height: 24rem;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        select {
+            background-color: #2d3748;
+            color: #fff;
+            border: 1px solid #4a5568;
+            border-radius: 0.25rem;
+            padding: 0.5rem;
+        }
+    </style>
 </head>
-<body class="bg-gray-900 text-white">
-    <!-- Fallback UI in case React fails -->
+<body>
     <div id="root">
-        <div class="container mx-auto p-4">
-            <h1 class="text-4xl font-bold text-center mb-4">Loading Crime Data Visualizer...</h1>
+        <div class="container">
+            <h1>Loading Crime Data Visualizer...</h1>
             <p class="text-center">If this message persists, please check the console for errors (F12 → Console).</p>
         </div>
     </div>
 
     <script type="text/babel">
-        // Error Boundary Component
         class ErrorBoundary extends React.Component {
             constructor(props) {
                 super(props);
@@ -36,9 +141,9 @@
             render() {
                 if (this.state.hasError) {
                     return (
-                        <div className="container mx-auto p-4">
-                            <h1 className="text-4xl font-bold text-center mb-4">Something Went Wrong</h1>
-                            <p className="text-center text-red-500">Error: {this.state.error?.message || 'Unknown error'}</p>
+                        <div className="container">
+                            <h1>Something Went Wrong</h1>
+                            <p className="text-center text-red-500">Error: {this.state.error && this.state.error.message ? this.state.error.message : 'Unknown error'}</p>
                             <p className="text-center">Please check the console for more details (F12 → Console) and refresh the page.</p>
                         </div>
                     );
@@ -59,9 +164,9 @@
             const [endDate, setEndDate] = React.useState('2025-04-25T23:59:59');
             const [crimeometerData, setCrimeometerData] = React.useState(null);
             const [loading, setLoading] = React.useState(true);
+            const [filterAgency, setFilterAgency] = React.useState('All');
 
             React.useEffect(() => {
-                // Simulate loading delay to ensure dependencies are ready
                 setTimeout(() => setLoading(false), 1000);
             }, []);
 
@@ -178,6 +283,8 @@
             };
 
             React.useEffect(() => {
+                if (loading) return;
+
                 try {
                     if (!window.THREE) {
                         console.error("Three.js failed to load");
@@ -205,7 +312,10 @@
                     pointLight.position.set(10, 10, 10);
                     scene.add(pointLight);
 
-                    const crimeTypes = data.length > 0 ? [...new Set(data.map(d => d.crime_story.match(/murder|theft|assault|robbery|arrest/i)?.[0] || 'Crime'))].slice(0, 5) : ['Robbery', 'Assault', 'Burglary', 'Theft', 'Vandalism'];
+                    const crimeTypes = data.length > 0 ? [...new Set(data.map(d => {
+                        const match = d.crime_story.match(/murder|theft|assault|robbery|arrest/i);
+                        return match ? match[0] : 'Crime';
+                    }))].slice(0, 5) : ['Robbery', 'Assault', 'Burglary', 'Theft', 'Vandalism'];
                     const counts = crimeTypes.map(type => data.filter(d => d.crime_story.toLowerCase().includes(type.toLowerCase())).length || Math.random() * 10);
 
                     const bars = [];
@@ -245,24 +355,25 @@
                 } catch (error) {
                     console.error("Three.js error:", error.message);
                 }
-            }, [data]);
+            }, [data, loading]);
 
             if (loading) {
                 return (
-                    <div className="container mx-auto p-4">
-                        <h1 className="text-4xl font-bold text-center mb-4">Crime Data Visualizer</h1>
+                    <div className="container">
+                        <h1>Crime Data Visualizer</h1>
                         <p className="text-center">Loading...</p>
                     </div>
                 );
             }
 
+            const filteredData = filterAgency === 'All' ? data : data.filter(item => item.agency === filterAgency);
+
             return (
-                <div className="container mx-auto p-4">
-                    <h1 className="text-4xl font-bold text-center mb-4">Crime Data Visualizer</h1>
+                <div className="container">
+                    <h1>Crime Data Visualizer</h1>
                     <div className="mb-4">
                         <button
                             onClick={handleFetchData}
-                            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded mr-2"
                         >
                             Fetch Crime Data from Reliable Sources
                         </button>
@@ -270,97 +381,103 @@
                     </div>
 
                     <div className="mt-4">
-                        <h2 className="text-2xl font-bold">Fetch Real-Time Crime Data (CrimeoMeter)</h2>
+                        <h2>Fetch Real-Time Crime Data (CrimeoMeter)</h2>
                         <div className="mb-4">
-                            <label className="block text-lg mb-2">Latitude:</label>
+                            <label htmlFor="lat">Latitude:</label>
                             <input
+                                id="lat"
+                                name="lat"
                                 type="text"
                                 value={lat}
                                 onChange={(e) => setLat(e.target.value)}
-                                className="w-full p-2 bg-gray-800 text-white rounded"
                                 placeholder="e.g., 37.7749 (San Francisco)"
                             />
                         </div>
                         <div className="mb-4">
-                            <label className="block text-lg mb-2">Longitude:</label>
+                            <label htmlFor="lon">Longitude:</label>
                             <input
+                                id="lon"
+                                name="lon"
                                 type="text"
                                 value={lon}
                                 onChange={(e) => setLon(e.target.value)}
-                                className="w-full p-2 bg-gray-800 text-white rounded"
                                 placeholder="e.g., -122.4194 (San Francisco)"
                             />
                         </div>
                         <div className="mb-4">
-                            <label className="block text-lg mb-2">Start Date (YYYY-MM-DDThh:mm:ss):</label>
+                            <label htmlFor="startDate">Start Date (YYYY-MM-DDThh:mm:ss):</label>
                             <input
+                                id="startDate"
+                                name="startDate"
                                 type="text"
                                 value={startDate}
                                 onChange={(e) => setStartDate(e.target.value)}
-                                className="w-full p-2 bg-gray-800 text-white rounded"
                                 placeholder="e.g., 2025-04-01T00:00:00"
                             />
                         </div>
                         <div className="mb-4">
-                            <label className="block text-lg mb-2">End Date (YYYY-MM-DDThh:mm:ss):</label>
+                            <label htmlFor="endDate">End Date (YYYY-MM-DDThh:mm:ss):</label>
                             <input
+                                id="endDate"
+                                name="endDate"
                                 type="text"
                                 value={endDate}
                                 onChange={(e) => setEndDate(e.target.value)}
-                                className="w-full p-2 bg-gray-800 text-white rounded"
                                 placeholder="e.g., 2025-04-25T23:59:59"
                             />
                         </div>
                         <button
                             onClick={handleFetchCrimeometer}
-                            className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded"
+                            className="bg-purple-500"
                         >
                             Fetch CrimeoMeter Data
                         </button>
                         {crimeometerData && (
                             <div className="bg-gray-800 p-4 rounded mt-2">
-                                <h3 className="text-xl font-bold">CrimeoMeter Results</h3>
+                                <h3>CrimeoMeter Results</h3>
                                 <pre>{JSON.stringify(crimeometerData, null, 2)}</pre>
                             </div>
                         )}
                     </div>
 
                     <div className="mt-4">
-                        <h2 className="text-2xl font-bold">Identify Criminal</h2>
+                        <h2>Identify Criminal</h2>
                         <div className="mb-4">
-                            <label className="block text-lg mb-2">Upload Image:</label>
+                            <label htmlFor="imageUpload">Upload Image (JPG or PNG only):</label>
                             <input
+                                id="imageUpload"
+                                name="imageUpload"
                                 type="file"
-                                accept="image/*"
+                                accept="image/jpeg,image/png"
                                 onChange={(e) => setImage(e.target.files[0])}
-                                className="w-full p-2 bg-gray-800 text-white rounded"
                             />
                             <button
                                 onClick={handleIdentifyImage}
-                                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mt-2"
+                                className="bg-blue-500"
                             >
                                 Identify by Image
                             </button>
                         </div>
                         <div className="mb-4">
-                            <label className="block text-lg mb-2">Enter Name:</label>
+                            <label htmlFor="criminalName">Enter Name:</label>
                             <input
+                                id="criminalName"
+                                name="criminalName"
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                className="w-full p-2 bg-gray-800 text-white rounded"
                                 placeholder="e.g., John Doe"
                             />
                             <button
                                 onClick={handleIdentifyName}
-                                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mt-2"
+                                className="bg-blue-500"
                             >
                                 Identify by Name
                             </button>
                         </div>
                         {identifications.length > 0 && (
                             <div className="bg-gray-800 p-4 rounded mt-2">
-                                <h3 className="text-xl font-bold">Identification Results</h3>
+                                <h3>Identification Results</h3>
                                 {identifications.map((id, index) => (
                                     <div key={index} className="mt-2">
                                         <p><strong>Person {index + 1} Name:</strong> {id.name}</p>
@@ -373,9 +490,26 @@
 
                     <div id="three-canvas" className="mt-4 h-96 w-full"></div>
                     <div className="mt-4">
-                        <h2 className="text-2xl font-bold">Crime Data</h2>
-                        {data.map((item, index) => (
+                        <h2>Crime Data</h2>
+                        <div className="mb-4">
+                            <label>Filter by Agency:</label>
+                            <select
+                                value={filterAgency}
+                                onChange={(e) => setFilterAgency(e.target.value)}
+                            >
+                                <option value="All">All</option>
+                                <option value="Interpol">Interpol</option>
+                                <option value="CBI">CBI</option>
+                                <option value="NIA">NIA</option>
+                                <option value="State Police">State Police</option>
+                                <option value="Court">Court</option>
+                                <option value="News">News</option>
+                            </select>
+                        </div>
+                        {filteredData.map((item, index) => (
                             <div key={index} className="bg-gray-800 p-4 rounded mt-2">
+                                <p><strong>Agency:</strong> {item.agency || 'Not specified'}</p>
+                                <p><strong>Category:</strong> {item.category || 'Not specified'}</p>
                                 <p><strong>Source:</strong> {item.source}</p>
                                 <p><strong>URL:</strong> {item.url}</p>
                                 <p><strong>Criminal Name:</strong> {item.criminal_name}</p>
@@ -389,7 +523,6 @@
             );
         };
 
-        // Wrap App in ErrorBoundary and render
         ReactDOM.render(
             <ErrorBoundary>
                 <App />
