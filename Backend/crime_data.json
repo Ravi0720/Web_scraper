@@ -1,0 +1,22 @@
+[
+    {
+        "source": "Interpol Red Notice",
+        "url": "https://www.interpol.int/How-we-work/Notices/Red-Notices/View-Red-Notices#",
+        "criminal_name": "Anil Kumar",
+        "crime_date": "Unknown",
+        "crime_story": "Anil Kumar is wanted by Interpol for: Murder",
+        "fetch_date": "2025-04-28T03:22:11.175100",
+        "agency": "Interpol",
+        "category": "Red Notice"
+    },
+    {
+        "source": "NIA Wanted List",
+        "url": "https://nia.gov.in/most-wanted",
+        "criminal_name": "Goldy Brar",
+        "crime_date": "Unknown",
+        "crime_story": "Goldy Brar is wanted by NIA for: Terror-gangster nexus. Reward: Rs 10 lakh",
+        "fetch_date": "2025-04-28T03:22:11.175153",
+        "agency": "NIA",
+        "category": "Wanted List"
+    }
+]

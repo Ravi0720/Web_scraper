@@ -135,6 +135,76 @@ class WebScraper:
             "fetch_date": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
 
+    def parse_wanted_list(self, html, url, source):
+        if not html:
+            return []
+
+        soup = BeautifulSoup(html, 'html.parser')
+        results = []
+
+        # Generic parsing for wanted lists (customize per source)
+        if "fbi.gov" in url:
+            # FBI Most Wanted: Look for list items with fugitive details
+            items = soup.select('li.portal-type-person')  # Adjust selector based on site structure
+            for item in items:
+                name = item.select_one('h3 a') or item.select_one('h2 a')
+                name = name.get_text(strip=True) if name else "Unknown"
+                crime = item.select_one('.crimes') or item.select_one('.description')
+                crime = crime.get_text(strip=True) if crime else "No crime details"
+                date = item.select_one('.date') or item.select_one('.wanted-date')
+                date = date.get_text(strip=True) if date else "Unknown"
+
+                results.append({
+                    "source": source,
+                    "url": url,
+                    "criminal_name": name,
+                    "crime_date": date,
+                    "crime_story": crime,
+                    "fetch_date": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                })
+
+        elif "interpol.int" in url:
+            # Interpol Red Notices: Look for notice cards
+            items = soup.select('.red-notice-card')  # Adjust selector
+            for item in items:
+                name = item.select_one('.name')
+                name = name.get_text(strip=True) if name else "Unknown"
+                charges = item.select_one('.charges')
+                charges = charges.get_text(strip=True) if charges else "No charges listed"
+                date = item.select_one('.date-of-birth') or item.select_one('.issue-date')
+                date = date.get_text(strip=True) if date else "Unknown"
+
+                results.append({
+                    "source": source,
+                    "url": url,
+                    "criminal_name": name,
+                    "crime_date": date,
+                    "crime_story": charges,
+                    "fetch_date": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                })
+
+        elif "nationalcrimeagency.gov.uk" in url:
+            # NCA Most Wanted: Look for fugitive profiles
+            items = soup.select('.most-wanted-item')  # Adjust selector
+            for item in items:
+                name = item.select_one('.name')
+                name = name.get_text(strip=True) if name else "Unknown"
+                crime = item.select_one('.offences')
+                crime = crime.get_text(strip=True) if crime else "No offences listed"
+                date = item.select_one('.date')
+                date = date.get_text(strip=True) if date else "Unknown"
+
+                results.append({
+                    "source": source,
+                    "url": url,
+                    "criminal_name": name,
+                    "crime_date": date,
+                    "crime_story": crime,
+                    "fetch_date": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                })
+
+        return results
+
     def fetch_crimeometer_data(self, lat, lon, start_date, end_date, distance="1mi"):
         api_key = "YOUR_CRIMEOMETER_API_KEY"
         url = f"https://api.crimeometer.com/v2/crime-incidents?lat={lat}&lon={lon}&datetime_ini={start_date}&datetime_end={end_date}&distance={distance}"
@@ -153,30 +223,46 @@ class WebScraper:
         session = Session()
         self.data = []
 
-        news_sources = [
-            {"name": "CNN", "url": "https://www.cnn.com/us/crime"},
-            {"name": "BBC", "url": "https://www.bbc.com/news/topics/c77jz3mdmx9t/crime"},
-            {"name": "The Guardian", "url": "https://www.theguardian.com/uk/crime"}
+        sources = [
+            {"name": "CNN", "url": "https://www.cnn.com/us/crime", "type": "news"},
+            {"name": "BBC", "url": "https://www.bbc.com/news/topics/c77jz3mdmx9t/crime", "type": "news"},
+            {"name": "The Guardian", "url": "https://www.theguardian.com/uk/crime", "type": "news"},
+            {"name": "FBI Most Wanted", "url": "https://www.fbi.gov/wanted", "type": "wanted"},
+            {"name": "Interpol Red Notices", "url": "https://www.interpol.int/How-we-work/Notices/View-Red-Notices", "type": "wanted"},
+            {"name": "National Crime Agency", "url": "https://www.nationalcrimeagency.gov.uk/most-wanted", "type": "wanted"}
         ]
 
-        for source in news_sources:
+        for source in sources:
             logging.info(f"Fetching data from: {source['name']} ({source['url']})")
             html = self.fetch_page(source['url'])
             if html:
-                page_data = self.parse_news_page(html, source['url'], source['name'])
-                if page_data:
-                    self.data.append(page_data)
-
-                    db_entry = CrimeData(
-                        source=page_data['source'],
-                        url=page_data['url'],
-                        criminal_name=page_data['criminal_name'],
-                        crime_date=page_data['crime_date'],
-                        crime_story=page_data['crime_story'],
-                        fetch_date=page_data['fetch_date']
-                    )
-                    session.add(db_entry)
-                    session.commit()
+                if source['type'] == "news":
+                    page_data = self.parse_news_page(html, source['url'], source['name'])
+                    if page_data:
+                        self.data.append(page_data)
+                        db_entry = CrimeData(
+                            source=page_data['source'],
+                            url=page_data['url'],
+                            criminal_name=page_data['criminal_name'],
+                            crime_date=page_data['crime_date'],
+                            crime_story=page_data['crime_story'],
+                            fetch_date=page_data['fetch_date']
+                        )
+                        session.add(db_entry)
+                elif source['type'] == "wanted":
+                    page_data_list = self.parse_wanted_list(html, source['url'], source['name'])
+                    for page_data in page_data_list:
+                        self.data.append(page_data)
+                        db_entry = CrimeData(
+                            source=page_data['source'],
+                            url=page_data['url'],
+                            criminal_name=page_data['criminal_name'],
+                            crime_date=page_data['crime_date'],
+                            crime_story=page_data['crime_story'],
+                            fetch_date=page_data['fetch_date']
+                        )
+                        session.add(db_entry)
+                session.commit()
             time.sleep(self.delay)
 
         self.save_to_file()
