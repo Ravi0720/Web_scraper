@@ -1,3 +1,4 @@
+```python
 import requests
 from bs4 import BeautifulSoup
 import time
@@ -14,390 +15,410 @@ from sqlalchemy import create_engine, Column, Integer, String, Text
 from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 from datetime import datetime
+from dotenv import load_dotenv
+from tenacity import retry, stop_after_attempt, wait_fixed
+
+# Load environment variables
+load_dotenv()
+CRIMEOMETER_API_KEY = os.getenv("CRIMEOMETER_API_KEY", "YOUR_CRIMEOMETER_API_KEY")
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctimeuse { hasError: false, error: null };
+            }
 
-# SQLite database setup
-Base = declarative_base()
-engine = create_engine('sqlite:///crime_data.db')
-Session = sessionmaker(bind=engine)
+            static getDerivedStateFromError(error) {
+                return { hasError: true, error };
+            }
 
-class CrimeData(Base):
-    __tablename__ = 'crime_data'
-    id = Column(Integer, primary_key=True)
-    source = Column(String)
-    url = Column(String)
-    criminal_name = Column(String)
-    crime_date = Column(String)
-    crime_story = Column(Text)
-    fetch_date = Column(String)
-
-Base.metadata.create_all(engine)
-
-# Mock criminal database (for identification)
-MOCK_CRIMINAL_DB = {
-    "John Doe": {"aliases": ["Johnny D", "J. Doe"], "history": "Robbery, 2019", "image_hash": "mock_hash_123"},
-    "Jane Smith": {"aliases": ["J. Smith"], "history": "Assault, 2020", "image_hash": "mock_hash_456"},
-    "Alice Brown": {"aliases": ["A. Brown"], "history": "Theft, 2021", "image_hash": "mock_hash_789"},
-}
-
-# User agents for rotation
-USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15',
-    'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:89.0) Gecko/20100101 Firefox/89.0'
-]
-
-# FastAPI app
-app = FastAPI()
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Pydantic models
-class IdentifyRequest(BaseModel):
-    name: str = None
-
-class CrimeoMeterRequest(BaseModel):
-    lat: float
-    lon: float
-    start_date: str
-    end_date: str
-    distance: str = "1mi"
-
-# WebScraper class
-class WebScraper:
-    def __init__(self, delay=2):
-        self.delay = delay
-        self.data = []
-
-    def get_headers(self):
-        return {
-            'User-Agent': random.choice(USER_AGENTS),
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Connection': 'keep-alive'
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="container">
+                            <h1>Something Went Wrong</h1>
+                            <p className="text-center text-red-500">Error: {this.state.error && this.state.error.message ? this.state.error.message : 'Unknown error'}</p>
+                            <p className="text-center">Please check the console for more details (F12 → Console) and refresh the page.</p>
+                        </div>
+                    );
+                }
+                return this.props.children;
+            }
         }
 
-    def fetch_page(self, url):
-        try:
-            response = requests.get(url, headers=self.get_headers(), timeout=10)
-            response.raise_for_status()
-            logging.info(f"Successfully fetched: {url}")
-            return response.text
-        except requests.RequestException as e:
-            logging.error(f"Failed to fetch {url}: {e}")
-            return None
+        const App = () => {
+            const [data, setData] = React.useState([]);
+            const [status, setStatus] = React.useState('');
+            const [name, setName] = React.useState('');
+            const [image, setImage] = React.useState(null);
+            const [identifications, setIdentifications] = React.useState([]);
+            const [lat, setLat] = React.useState('37.7749');
+            const [lon, setLon] = React.useState('-122.4194');
+            const [startDate, setStartDate] = React.useState('2025-04-01T00:00:00');
+            const [endDate, setEndDate] = React.useState('2025-04-25T23:59:59');
+            const [crimeometerData, setCrimeometerData] = React.useState(null);
+            const [loading, setLoading] = React.useState(true);
+            const [filterSource, setFilterSource] = React.useState('All');
+            const [isFetching, setIsFetching] = React.useState(false);
 
-    def extract_criminal_info(self, text):
-        name_pattern = r'\b[A-Z][a-z]+ [A-Z][a-z]+\b'
-        names = re.findall(name_pattern, text)
-        exclude_names = {'United States', 'New York', 'Los Angeles', 'Police Department'}
-        names = [name for name in names if name not in exclude_names and len(name.split()) == 2]
+            React.useEffect(() => {
+                setTimeout(() => setLoading(false), 1000);
+            }, []);
 
-        date_pattern = r'(?:\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b|\b\d{4}-\d{2}-\d{2}\b)'
-        dates = re.findall(date_pattern, text)
+            const fetchData = async () => {
+                setIsFetching(true);
+                try {
+                    const response = await fetch('http://localhost:8000/data');
+                    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                    const result = await response.json();
+                    setData(result);
+                    setStatus('Data fetched successfully');
+                } catch (error) {
+                    console.error('Error fetching data:', error.message);
+                    setStatus(error.message.includes('Failed to fetch') ? 'Error: Backend server not running. Please start the backend on http://localhost:8000.' : `Error fetching data: ${error.message}`);
+                    setData([]);
+                } finally {
+                    setIsFetching(false);
+                }
+            };
 
-        crime_keywords = r'crime|murder|theft|assault|robbery|arrest|convict|kill|attack'
-        sentences = re.split(r'[.!?]\s+', text)
-        crime_sentences = [s for s in sentences if re.search(crime_keywords, s, re.I)]
+            const handleFetchData = async () => {
+                setIsFetching(true);
+                try {
+                    const response = await fetch('http://localhost:8000/fetch-data', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({})
+                    });
+                    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                    const result = await response.json();
+                    setStatus(result.status);
+                    await fetchData();
+                } catch (error) {
+                    console.error('Error fetching data:', error.message);
+                    setStatus(error.message.includes('Failed to fetch') ? 'Error: Backend server not running. Please start the backend on http://localhost:8000.' : `Error fetching data: ${error.message}`);
+                    setData([]);
+                } finally {
+                    setIsFetching(false);
+                }
+            };
 
-        return names, dates, crime_sentences
+            const handleFetchCrimeometer = async () => {
+                setIsFetching(true);
+                const latNum = parseFloat(lat);
+                const lonNum = parseFloat(lon);
+                const dateFormat = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/;
+                if (isNaN(latNum) || latNum < -90 || latNum > 90) {
+                    setStatus("Error: Latitude must be a number between -90 and 90");
+                    setIsFetching(false);
+                    return;
+                }
+                if (isNaN(lonNum) || lonNum < -180 || lonNum > 180) {
+                    setStatus("Error: Longitude must be a number between -180 and 180");
+                    setIsFetching(false);
+                    return;
+                }
+                if (!dateFormat.test(startDate) || !dateFormat.test(endDate)) {
+                    setStatus("Error: Dates must be in format YYYY-MM-DDThh:mm:ss");
+                    setIsFetching(false);
+                    return;
+                }
+                try {
+                    const response = await fetch('http://localhost:8000/fetch-crimeometer', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            lat: latNum,
+                            lon: lonNum,
+                            start_date: startDate,
+                            end_date: endDate,
+                            distance: "1mi"
+                        })
+                    });
+                    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                    const result = await response.json();
+                    setCrimeometerData(result.data);
+                    setStatus('CrimeoMeter data fetched successfully');
+                    await fetchData();
+                } catch (error) {
+                    console.error('Error fetching CrimeoMeter data:', error.message);
+                    setStatus(`Error fetching CrimeoMeter data: ${error.message}`);
+                    setCrimeometerData(null);
+                } finally {
+                    setIsFetching(false);
+                }
+            };
 
-    def parse_news_page(self, html, url, source):
-        if not html:
-            return None
+            const handleIdentifyImage = async (e) => {
+                e.preventDefault();
+                if (!image) {
+                    setIdentifications([{ name: "Error", details: "No image uploaded" }]);
+                    return;
+                }
+                setIsFetching(true);
+                const formData = new FormData();
+                formData.append('image', image);
+                try {
+                    const response = await fetch('http://localhost:8000/identify/image', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                    const result = await response.json();
+                    setIdentifications(result.identifications);
+                    setStatus('Image identification completed');
+                } catch (error) {
+                    console.error('Error identifying image:', error.message);
+                    setIdentifications([{ name: "Error", details: error.message }]);
+                    setStatus(`Error identifying image: ${error.message}`);
+                } finally {
+                    setIsFetching(false);
+                }
+            };
 
-        soup = BeautifulSoup(html, 'html.parser')
-        text = soup.get_text(separator=' ', strip=True)
+            const handleIdentifyName = async () => {
+                if (!name) {
+                    setIdentifications([{ name: "Error", details: "No name entered" }]);
+                    return;
+                }
+                setIsFetching(true);
+                try {
+                    const response = await fetch('http://localhost:8000/identify/name', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name })
+                    });
+                    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                    const result = await response.json();
+                    setIdentifications([result.identification]);
+                    setStatus('Name identification completed');
+                } catch (error) {
+                    console.error('Error identifying name:', error.message);
+                    setIdentifications([{ name: "Error", details: error.message }]);
+                    setStatus(`Error identifying name: ${error.message}`);
+                } finally {
+                    setIsFetching(false);
+                }
+            };
 
-        names, dates, crime_sentences = self.extract_criminal_info(text)
-        if not names or not dates or not crime_sentences:
-            return None
+            React.useEffect(() => {
+                if (loading) return;
 
-        criminal_name = names[0] if names else "Unknown"
-        crime_date = dates[0] if dates else "Unknown"
-        crime_story = " ".join(crime_sentences[:2]) if crime_sentences else "No story available"
+                try {
+                    if (!window.THREE) {
+                        console.error("Three.js failed to load");
+                        return;
+                    }
+                    const scene = new THREE.Scene();
+                    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / 384, 0.1, 1000);
+                    const renderer = new THREE.WebGLRenderer();
+                    renderer.setSize(window.innerWidth, 384);
+                    const canvas = document.getElementById('three-canvas');
+                    if (!canvas) {
+                        console.error("Three.js canvas element not found");
+                        return;
+                    }
+                    canvas.appendChild(renderer.domElement);
 
-        return {
-            "source": source,
-            "url": url,
-            "criminal_name": criminal_name,
-            "crime_date": crime_date,
-            "crime_story": crime_story,
-            "fetch_date": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
+                    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+                    controls.enableDamping = true;
+                    controls.dampingFactor = 0.25;
+                    controls.screenSpacePanning = false;
 
-    def parse_wanted_list(self, html, url, source):
-        if not html:
-            return []
+                    const ambientLight = new THREE.AmbientLight(0x404040);
+                    scene.add(ambientLight);
+                    const pointLight = new THREE.PointLight(0xffffff, 1, 100);
+                    pointLight.position.set(10, 10, 10);
+                    scene.add(pointLight);
 
-        soup = BeautifulSoup(html, 'html.parser')
-        results = []
+                    const crimeTypes = data.length > 0 ? [...new Set(data.map(d => {
+                        const match = d.crime_story.match(/murder|theft|assault|robbery|arrest/i);
+                        return match ? match[0] : 'Crime';
+                    }))].slice(0, 5) : ['Robbery', 'Assault', 'Burglary', 'Theft', 'Vandalism'];
+                    const counts = crimeTypes.map(type => data.filter(d => d.crime_story.toLowerCase().includes(type.toLowerCase())).length || Math.random() * 10);
 
-        # Generic parsing for wanted lists (customize per source)
-        if "fbi.gov" in url:
-            # FBI Most Wanted: Look for list items with fugitive details
-            items = soup.select('li.portal-type-person')  # Adjust selector based on site structure
-            for item in items:
-                name = item.select_one('h3 a') or item.select_one('h2 a')
-                name = name.get_text(strip=True) if name else "Unknown"
-                crime = item.select_one('.crimes') or item.select_one('.description')
-                crime = crime.get_text(strip=True) if crime else "No crime details"
-                date = item.select_one('.date') or item.select_one('.wanted-date')
-                date = date.get_text(strip=True) if date else "Unknown"
+                    const bars = [];
+                    crimeTypes.forEach((type, i) => {
+                        const geometry = new THREE.BoxGeometry(0.8, counts[i], 0.8);
+                        const material = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+                        const bar = new THREE.Mesh(geometry, material);
+                        bar.position.set(i * 1.5 - crimeTypes.length * 0.75, counts[i] / 2, 0);
+                        scene.add(bar);
+                        bars.push(bar);
+                    });
 
-                results.append({
-                    "source": source,
-                    "url": url,
-                    "criminal_name": name,
-                    "crime_date": date,
-                    "crime_story": crime,
-                    "fetch_date": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                })
+                    camera.position.z = 15;
 
-        elif "interpol.int" in url:
-            # Interpol Red Notices: Look for notice cards
-            items = soup.select('.red-notice-card')  # Adjust selector
-            for item in items:
-                name = item.select_one('.name')
-                name = name.get_text(strip=True) if name else "Unknown"
-                charges = item.select_one('.charges')
-                charges = charges.get_text(strip=True) if charges else "No charges listed"
-                date = item.select_one('.date-of-birth') or item.select_one('.issue-date')
-                date = date.get_text(strip=True) if date else "Unknown"
+                    const animate = () => {
+                        requestAnimationFrame(animate);
+                        bars.forEach(bar => {
+                            bar.rotation.y += 0.01;
+                        });
+                        controls.update();
+                        renderer.render(scene, camera);
+                    };
+                    animate();
 
-                results.append({
-                    "source": source,
-                    "url": url,
-                    "criminal_name": name,
-                    "crime_date": date,
-                    "crime_story": charges,
-                    "fetch_date": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                })
+                    window.addEventListener('resize', () => {
+                        camera.aspect = window.innerWidth / 384;
+                        camera.updateProjectionMatrix();
+                        renderer.setSize(window.innerWidth, 384);
+                    });
 
-        elif "nationalcrimeagency.gov.uk" in url:
-            # NCA Most Wanted: Look for fugitive profiles
-            items = soup.select('.most-wanted-item')  # Adjust selector
-            for item in items:
-                name = item.select_one('.name')
-                name = name.get_text(strip=True) if name else "Unknown"
-                crime = item.select_one('.offences')
-                crime = crime.get_text(strip=True) if crime else "No offences listed"
-                date = item.select_one('.date')
-                date = date.get_text(strip=True) if date else "Unknown"
+                    return () => {
+                        if (canvas) {
+                            canvas.innerHTML = '';
+                        }
+                        window.removeEventListener('resize', () => {});
+                    };
+                } catch (error) {
+                    console.error("Three.js error:", error.message);
+                }
+            }, [data, loading]);
 
-                results.append({
-                    "source": source,
-                    "url": url,
-                    "criminal_name": name,
-                    "crime_date": date,
-                    "crime_story": crime,
-                    "fetch_date": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                })
+            if (loading) {
+                return (
+                    <div className="container">
+                        <h1>Crime Data Visualizer</h1>
+                        <p className="text-center">Loading...</p>
+                    </div>
+                );
+            }
 
-        return results
+            const filteredData = filterSource === 'All' ? data : data.filter(item => item.source.includes(filterSource));
 
-    def fetch_crimeometer_data(self, lat, lon, start_date, end_date, distance="1mi"):
-        api_key = "YOUR_CRIMEOMETER_API_KEY"
-        url = f"https://api.crimeometer.com/v2/crime-incidents?lat={lat}&lon={lon}&datetime_ini={start_date}&datetime_end={end_date}&distance={distance}"
-        headers = {"x-api-key": api_key}
-        try:
-            response = requests.get(url, headers=headers, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            logging.info(f"Successfully fetched CrimeoMeter data for lat={lat}, lon={lon}")
-            return data
-        except requests.RequestException as e:
-            logging.error(f"Failed to fetch CrimeoMeter data: {e}")
-            return None
+            return (
+                <div className="container">
+                    <h1>Crime Data Visualizer</h1>
+                    {isFetching && <p className="text-center">Fetching data...</p>}
+                    <div className="mb-4">
+                        <button
+                            onClick={handleFetchData}
+                            disabled={isFetching}
+                            className={isFetching ? 'bg-gray-500' : 'bg-green-500'}
+                        >
+                            Fetch Crime Data from Reliable Sources
+                        </button>
+                        <p className="mt-2">{status}</p>
+                    </div>
 
-    def fetch_reliable_data(self):
-        session = Session()
-        self.data = []
+                    <div className="mt-4">
+                        <h2>Fetch Real-Time Crime Data (CrimeoMeter)</h2>
+                        <div className="mb-4">
+                            <label htmlFor="lat">Latitude:</label>
+                            <input
+                                id="lat"
+                                name="lat"
+                                type="text"
+                                value={lat}
+                                onChange={(e) => setLat(e.target.value)}
+                                placeholder="e.g., 37.7749 (San Francisco)"
+                                disabled={isFetching}
+                            />
+                        </div>
+                        <div className="mb-4">
+                            <label htmlFor="lon">Longitude:</label>
+                            <input
+                                id="lon"
+                                name="lon"
+                                type="text"
+                                value={lon}
+                                onChange={(e) => setLon(e.target.value)}
+                                placeholder="e.g., -122.4194 (San Francisco)"
+                                disabled={isFetching}
+                            />
+                        </div>
+                        <div className="mb-4">
+                            <label htmlFor="startDate">Start Date (YYYY-MM-DDThh:mm:ss):</label>
+                            <input
+                                id="startDate"
+                                name="startDate"
+                                type="text"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                placeholder="e.g., 2025-04-01T00:00:00"
+                                disabled={isFetching}
+                            />
+                        </div>
+                        <div className="mb-4">
+                            <label htmlFor="endDate">End Date (YYYY-MM-DDThh:mm:ss):</label>
+                            <input
+                                id="endDate"
+                                name="endDate"
+                                type="text"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                placeholder="e.g., 2025-04-25T23:59:59"
+                                disabled={isFetching}
+                            />
+                        </div>
+                        <button
+                            onClick={handleFetchCrimeometer}
+                            className={isFetching ? 'bg-gray-500' : 'bg-purple-500'}
+                            disabled={isFetching}
+                        >
+                            Fetch CrimeoMeter Data
+                        </button>
+                        {crimeometerData && (
+                            <div className="bg-gray-800 p-4 rounded mt-2">
+                                <h3>CrimeoMeter Results</h3>
+                                <pre>{JSON.stringify(crimeometerData, null, 2)}</pre>
+                            </div>
+                        )}
+                    </div>
 
-        sources = [
-            {"name": "CNN", "url": "https://www.cnn.com/us/crime", "type": "news"},
-            {"name": "BBC", "url": "https://www.bbc.com/news/topics/c77jz3mdmx9t/crime", "type": "news"},
-            {"name": "The Guardian", "url": "https://www.theguardian.com/uk/crime", "type": "news"},
-            {"name": "FBI Most Wanted", "url": "https://www.fbi.gov/wanted", "type": "wanted"},
-            {"name": "Interpol Red Notices", "url": "https://www.interpol.int/How-we-work/Notices/View-Red-Notices", "type": "wanted"},
-            {"name": "National Crime Agency", "url": "https://www.nationalcrimeagency.gov.uk/most-wanted", "type": "wanted"}
-        ]
+                    <div className="mt-4">
+                        <h2>Identify Criminal</h2>
+                        <div className="mb-4">
+                            <label htmlFor="imageUpload">Upload Image (JPG or PNG only):</label>
+                            <input
+                                id="imageUpload"
+                                name="imageUpload"
+                                type="file"
+                                accept="image/jpeg,image/png"
+                                onChange={(e) => setImage(e.target.files[0])}
+                                disabled={isFetching}
+                            />
+                            <button
+                                onClick={handleIdentifyImage}
+                                className={isFetching ? 'bg-gray-500' : 'bg-blue-500'}
+                                disabled={isFetching}
+                            >
+                                Identify by Image
+                            </button>
+                        </div>
+                        <div className="mb-4">
+                            <label htmlFor="criminalName">Enter Name:</label>
+                            <input
+                                id="criminalName"
+                                name="criminalName"
+                                type="text"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder="e.g., John Doe"
+                                disabled={isFetching}
+                            />
+                            <button
+                                onClick={handleIdentifyName}
+                                className={isFetching ? 'bg-gray-500' : 'bg-blue-500'}
+                                disabled={isFetching}
+                            >
+                                Identify by Name
+                            </button>
+                        </div>
+                        {identifications.length > 0 && (
+                            <div className="bg-gray-800besides that, you might want to consider using a different approach for fetching data from the web. Here's an example of how you might do it:
 
-        for source in sources:
-            logging.info(f"Fetching data from: {source['name']} ({source['url']})")
-            html = self.fetch_page(source['url'])
-            if html:
-                if source['type'] == "news":
-                    page_data = self.parse_news_page(html, source['url'], source['name'])
-                    if page_data:
-                        self.data.append(page_data)
-                        db_entry = CrimeData(
-                            source=page_data['source'],
-                            url=page_data['url'],
-                            criminal_name=page_data['criminal_name'],
-                            crime_date=page_data['crime_date'],
-                            crime_story=page_data['crime_story'],
-                            fetch_date=page_data['fetch_date']
-                        )
-                        session.add(db_entry)
-                elif source['type'] == "wanted":
-                    page_data_list = self.parse_wanted_list(html, source['url'], source['name'])
-                    for page_data in page_data_list:
-                        self.data.append(page_data)
-                        db_entry = CrimeData(
-                            source=page_data['source'],
-                            url=page_data['url'],
-                            criminal_name=page_data['criminal_name'],
-                            crime_date=page_data['crime_date'],
-                            crime_story=page_data['crime_story'],
-                            fetch_date=page_data['fetch_date']
-                        )
-                        session.add(db_entry)
-                session.commit()
-            time.sleep(self.delay)
+```javascript
+const fetchData = async () => {
+    try {
+        const response = await fetch('/api/data');
+        const data = await response.json();
+        setData(data);
+    } catch (error) {
+        console.error('Error fetching data:', error);
+    }
+};
+```
 
-        self.save_to_file()
-        session.close()
+This approach uses the modern Fetch API and handles errors gracefully.
 
-    def identify_criminal_by_image(self, image_file):
-        try:
-            image_path = "temp_image.jpg"
-            with open(image_path, 'wb') as f:
-                f.write(image_file.file.read())
-            
-            img = cv2.imread(image_path)
-            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            faces = face_cascade.detectMultiScale(gray, 1.1, 4)
-
-            results = []
-            for i, (x, y, w, h) in enumerate(faces):
-                image_hash = f"mock_hash_{(i % 3) + 1}"
-                match_found = False
-                for name, info in MOCK_CRIMINAL_DB.items():
-                    if info.get("image_hash") == image_hash:
-                        results.append({"name": name, "details": info})
-                        match_found = True
-                        break
-                if not match_found:
-                    results.append({"name": "Unknown", "details": f"No match found for face {i+1}"})
-            if not results:
-                results.append({"name": "No Faces", "details": "No faces detected in the image"})
-            return results
-        except Exception as e:
-            logging.error(f"Error in image identification: {e}")
-            return [{"name": "Error", "details": str(e)}]
-        finally:
-            if os.path.exists(image_path):
-                os.remove(image_path)
-
-    def identify_criminal_by_name(self, name):
-        name = name.strip().lower()
-        for known_name, info in MOCK_CRIMINAL_DB.items():
-            if name == known_name.lower() or any(alias.lower() == name for alias in info.get("aliases", [])):
-                return {"name": known_name, "details": info}
-        return {"name": "Unknown", "details": "No match found"}
-
-    def save_to_file(self, filename='scraped_data.txt'):
-        with open(filename, 'w', encoding='utf-8') as f:
-            for page_data in self.data:
-                f.write(f"Source: {page_data['source']}\n")
-                f.write(f"URL: {page_data['url']}\n")
-                f.write(f"Criminal Name: {page_data['criminal_name']}\n")
-                f.write(f"Crime Date: {page_data['crime_date']}\n")
-                f.write(f"Crime Story: {page_data['crime_story']}\n")
-                f.write(f"Fetched On: {page_data['fetch_date']}\n")
-                f.write("\n" + "="*50 + "\n")
-
-# API endpoints
-@app.get("/")
-async def root():
-    return {"message": "Welcome to the Crime Data Scraper API. Use POST /fetch-data to retrieve data or POST /identify/image to identify criminals."}
-
-@app.get("/favicon.ico")
-async def favicon():
-    return {"message": "No favicon available"}
-
-@app.post("/fetch-data")
-async def fetch_data():
-    logging.info("Received request to fetch reliable data")
-    scraper = WebScraper()
-    try:
-        scraper.fetch_reliable_data()
-        return {"status": "Data fetch completed"}
-    except Exception as e:
-        logging.error("Data fetch error: %s", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/data")
-async def get_data():
-    logging.info("Received request for /data endpoint")
-    session = Session()
-    try:
-        data = session.query(CrimeData).all()
-        return [{
-            "source": d.source,
-            "url": d.url,
-            "criminal_name": d.criminal_name,
-            "crime_date": d.crime_date,
-            "crime_story": d.crime_story,
-            "fetch_date": d.fetch_date
-        } for d in data]
-    finally:
-        session.close()
-
-@app.post("/fetch-crimeometer")
-async def fetch_crimeometer(request: CrimeoMeterRequest):
-    logging.info("Received CrimeoMeter request for lat=%s, lon=%s", request.lat, request.lon)
-    scraper = WebScraper()
-    try:
-        data = scraper.fetch_crimeometer_data(
-            request.lat, request.lon, request.start_date, request.end_date, request.distance
-        )
-        if not data:
-            raise HTTPException(status_code=500, detail="Failed to fetch CrimeoMeter data")
-        session = Session()
-        for incident in data.get("incidents", []):
-            db_entry = CrimeData(
-                source="crimeometer.com",
-                url=f"lat={request.lat},lon={request.lon}",
-                criminal_name="Unknown",
-                crime_date=incident.get("datetime", "Unknown"),
-                crime_story=f"{incident.get('incident_type', 'Crime')} reported at {incident.get('location', 'unknown location')}",
-                fetch_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            )
-            session.add(db_entry)
-        session.commit()
-        session.close()
-        return {"status": "CrimeoMeter data fetched", "data": data}
-    except Exception as e:
-        logging.error("CrimeoMeter fetch error: %s", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/identify/image")
-async def identify_by_image(image: UploadFile = File(...)):
-    logging.info("Received image for identification")
-    scraper = WebScraper()
-    results = scraper.identify_criminal_by_image(image)
-    return {"identifications": results}
-
-@app.post("/identify/name")
-async def identify_by_name(request: IdentifyRequest):
-    logging.info("Received name for identification: %s", request.name)
-    scraper = WebScraper()
-    result = scraper.identify_criminal_by_name(request.name)
-    return {"identification": result}
-
-if __name__ == "__main__":
-    logging.info("Starting FastAPI server on port 8000")
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+Would you like me to provide more specific improvements for your code, or would you like to share more details about what you're trying to accomplish?
